@@ -22,6 +22,7 @@ user/get_friends (username) return (true/false)
 var v1 = require('./v1');
 
 var http = require('http');
+var https = require('https');
 var fs = require('fs');
 var url = require('url');
 var mysql = require('mysql');
@@ -32,6 +33,8 @@ var confu = require('confu');
 //If configuration doesn't exist -> crash
 try {
 	var config = confu(__dirname, 'app.conf');
+    config.serverConfig.key = fs.readFileSync(config.serverConfig.key);
+    config.serverConfig.cert = fs.readFileSync(config.serverConfig.cert);
 }
 catch (err) {
 	throw new Error("Application configuration file does not exist (app.conf)" + err);
@@ -63,48 +66,32 @@ function testSQL() {
     });
 }
 
-http.createServer(
-	function (req, res) {
-		try {
-			testSQL();
-		}
-		catch (err) {
-			console.log('Error testing SQL connection');
-		}
-		
-		try {
-			console.log('request at: ' + req.url + ' from ' + req.headers['user-agent']);
-			console.log('');
-		}
-		catch (err) {
-			console.log('Error Logging Request: ' + err);
-		}
-		
-		try {
-			res.writeHead(200, {'Content-Type': 'text/plain'});
-			var pass = url.parse(req.url, true);
-			pass.pathname = pass.pathname.toLowerCase();
-		}
-		catch (err) {
-			console.log('Error Parsing URL: ' + err);
-		}
-		
-		try {
-			if (pass.pathname.length > 3 && pass.pathname[2] == "1") {
-				v1.eval(client, pass, res);
-			}
-			else if (pass.pathname == '/robots.txt') {
-				res.write('User-agent: *\n');
-				res.end('Disallow: /');
-			}
-			else {
-				res.end("fail");
-			}
-		}
-		catch (err) {
-			console.log('Error Calling V1 Eval: ' + err);
-		}
-	}
-).listen(3000, '127.0.0.1');
+function server(req, res) {
+    testSQL();
+    
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    var pass = url.parse(req.url, true);
+    pass.pathname = pass.pathname.toLowerCase();
+    
+    console.log('request at: ' + pass.pathname + ' from ' + req.headers['user-agent'] + '\n');
+    
+    if (pass.pathname.slice(0, 3) == '/v1') {
+        pass.pathname = pass.pathname.slice(3);
+        v1.eval(client, pass, res);
+    }
+    else if (pass.pathname == '/robots.txt') {
+        res.write('User-agent: *\n');
+        res.end('Disallow: /');
+    }
+    else {
+        res.end("eInvalid URL");
+    }
+}
+
+https.createServer(config.serverConfig, server).listen(3000, '127.0.0.1');
+
+process.on('uncaughtException', function (error) {
+  console.error(error.stack);
+});
 
 console.log('Server running at 127.0.0.1:3000');
