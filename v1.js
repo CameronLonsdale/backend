@@ -27,7 +27,7 @@ var randomstring = require("randomstring").generate;
 var hash = require("node_hash");
 var check = require("validator").check;
 
-var outpostversion = "0.12";
+var outpostversion = "0.3";
 module.exports = {
 	eval:function (client, pass, res) {
 		try {
