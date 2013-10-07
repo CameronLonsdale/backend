@@ -40,34 +40,17 @@ catch (err) {
 	throw new Error("Application configuration file does not exist (app.conf)" + err);
 }
 
-//create a mysql connection object
-var client = mysql.createConnection(config.mySQLConfig);
+function connectSQL() {
+	//create a mysql connection object
+    var client = mysql.createConnection(config.mySQLConfig);
 
-//connect to the mysql database server
-client.connect();
-
-function testSQL() {
-	if (client && client._socket && client._socket.readable && client._socket.writable) {
-        return;
-    }
-    console.log('mySQL connection lost, reconnecting');
-    client.connect(function(err) {
-        if (err) {
-            console.log("SQL CONNECT ERROR: " + err);
-        } else {
-            console.log("SQL CONNECT SUCCESSFUL.");
-        }
-    });
-    client.on("close", function (err) {
-        console.log("SQL CONNECTION CLOSED.");
-    });
-    client.on("error", function (err) {
-        console.log("SQL CONNECTION ERROR: " + err);
-    });
+    //connect to the mysql database server
+    client.connect();
+    return client;
 }
 
 function server(req, res) {
-    testSQL();
+    var client = connectSQL();
     
     res.writeHead(200, {'Content-Type': 'text/plain'});
     var pass = url.parse(req.url, true);
