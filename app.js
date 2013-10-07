@@ -33,42 +33,35 @@ var confu = require('confu');
 //If configuration doesn't exist -> crash
 try {
 	var config = confu(__dirname, 'app.conf');
-    config.serverConfig.key = fs.readFileSync(config.serverConfig.key);
-    config.serverConfig.cert = fs.readFileSync(config.serverConfig.cert);
 }
 catch (err) {
 	throw new Error("Application configuration file does not exist (app.conf)" + err);
 }
 
-function connectSQL() {
-	//create a mysql connection object
-    var client = mysql.createConnection(config.mySQLConfig);
-
-    //connect to the mysql database server
-    client.connect();
-    return client;
-}
+var pool = mysql.createPool(config.mySQLConfig);
 
 function server(req, res) {
-    var client = connectSQL();
-    
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    var pass = url.parse(req.url, true);
-    pass.pathname = pass.pathname.toLowerCase();
-    
-    console.log('request at: ' + pass.pathname + ' from ' + req.headers['user-agent'] + '\n');
-    
-    if (pass.pathname.slice(0, 3) == '/v1') {
-        pass.pathname = pass.pathname.slice(3);
-        v1.eval(client, pass, res);
-    }
-    else if (pass.pathname == '/robots.txt') {
-        res.write('User-agent: *\n');
-        res.end('Disallow: /');
-    }
-    else {
-        res.end("eInvalid URL");
-    }
+    pool.getConnection(function (err, client) {
+        res.on('end', client.release);
+        
+        res.writeHead(200, {'Content-Type': 'text/plain'});
+        var pass = url.parse(req.url, true);
+        pass.pathname = pass.pathname.toLowerCase();
+        
+        console.log('request at: ' + pass.pathname + ' from ' + req.headers['user-agent'] + '\n');
+        
+        if (pass.pathname.slice(0, 3) == '/v1') {
+            pass.pathname = pass.pathname.slice(3);
+            v1.eval(client, pass, res);
+        }
+        else if (pass.pathname == '/robots.txt') {
+            res.write('User-agent: *\n');
+            res.end('Disallow: /');
+        }
+        else {
+            res.end("eInvalid URL");
+        }
+    });
 }
 
 https.createServer(config.serverConfig, server).listen(3000, '127.0.0.1');
