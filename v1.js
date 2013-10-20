@@ -10,6 +10,10 @@ var check = require('validator').check;
 
 var outpostversion = '0.26';
 
+module.exports = {
+	eval : ParseUrl,
+}
+
 function ParseUrl(client, pass, res) {
     //--Global--
     if (pass.pathname.slice(0, 5) === '/auth') {
@@ -29,10 +33,6 @@ function ParseUrl(client, pass, res) {
     else {
         res.end('eInvalid URL');
     }
-}
-
-module.exports = {
-	eval : ParseUrl,
 }
 
 /* ===========================================
@@ -77,6 +77,11 @@ function ParseAuth(client, pass, res) {
 
 //Login
 function login(client, res, username, password, source) {
+    //check for invalid parameters
+    if ('undefined' in [typeof username, typeof password]) {
+        res.end('eInvalid Parameters')
+        return;
+    }
     if (typeof source === 'undefined') {source = 'browser'; }
 
 	client.query('SELECT password_salt, password_hash, id FROM users WHERE username=? AND confirmed=1', [username],
@@ -128,6 +133,13 @@ function login(client, res, username, password, source) {
 
 //register
 function register(client, res, username, password, email, subscription, source) {
+    //check for invalid parameters
+    if ('undefined' in [typeof username, typeof password, typeof email, typeof subscription]) {
+        res.end('eInvalid Parameters')
+        return;
+    }
+    if (typeof source === 'undefined') {source = 'browser'; }
+    
     if (check(email).len(6, 64).isEmail()) {
         //check duplicates
         client.query('SELECT username, email FROM users WHERE username=? OR email=?', [username, email],
@@ -187,6 +199,11 @@ function createUser(client, res, username, password, email, subscription, source
 
 //confirm
 function confirm(client, res, username, secure_code) {
+    if ('undefined' in [typeof username, typeof secure_code]) {
+        res.end('eInvalid Parameters');
+        return;
+    }
+    
 	client.query('SELECT * FROM users WHERE username=? AND secure_code=?', [username, secure_code],
         function confirmSecureCode(err, result) {
             if (err || !result) {
@@ -205,6 +222,11 @@ function confirm(client, res, username, secure_code) {
 
 //change password
 function changePassword(client, res, username, ticket, newPassword) {
+    if ('undefined' in [typeof username, typeof ticket, typeof newPassword]) {
+        res.end('eInvalid Parameters');
+        return;
+    }
+    
     salt = randomstring(12);
 
     client.query('UPDATE users SET password_hash=?, password_salt=? WHERE username=? AND ticket=?',
@@ -238,9 +260,6 @@ function ParseOutpost(client, pass, res) {
     case '/characters/get':
         fetch(client, res, pass.query.username);
     break;
-    case '/characters/set':
-        AddGameData(client, res);
-    break;
     
     //game
     case '/game/save':
@@ -259,7 +278,6 @@ function ParseOutpost(client, pass, res) {
 }
 
 //character functions
-
 function CreateCharacter(client, id, end, error) {
     client.query('SELECT id FROM outpost_characters WHERE user_id=?', [id],
         function makeNewCharacter(err, result) {
@@ -623,7 +641,7 @@ function AddGameData(client, res, data) {
 function ParseSocial(client, pass, res) {
     switch (pass.pathname) {
     case '/friend_request':
-        friendrequest(client, res,
+        friendRequest(client, res,
             pass.query.username,
             pass.query.ticket,
             pass.query.friend_name
@@ -654,266 +672,135 @@ function ParseSocial(client, pass, res) {
     }
 }
 
-function friendrequest(client, res, username, ticket, friendname) {
-	//we get our id from this
-	TicketConfirmation(client, username, ticket,
-		function (err, result) {
-			try {
-				if (err || !result) {
-					res.end('fail1');
-				}
-				else {
-					if (username != friendname) {
-						client.query('SELECT users.id FROM users LEFT JOIN friends ON (friends.user_id = users.id AND friends.friend_id = ?) OR (friends.friend_id = users.id AND friends.user_id = ?) WHERE LOWER(users.username) = LOWER(?) AND friends.user_id IS NULL', [result.id, result.id, friendname],
-							function (err, result2) {
-								try {
-									if (err || !result2[0]) {
-										res.end('fails' + err);
-									}
-									else {
-										console.log('we have their id');
-										client.query('INSERT INTO friends (user_id, friend_id) VALUES(?, ?)', [result.id, result2[0].id],
-											function (err, result3) {
-												try {
-													if (err || !result3) {
-														res.end('fail3');
-													}
-													else {
-														res.end('success');
-													}
-												}
-												catch (err) {
-													console.log('V1 Error friendrequest 2nd query: ' + err);
-												}
-											}
-										);
-									}
-								}
-								catch (err) {
-									console.log('V1 Error friendrequest 1st query: ' + err);
-								}
-							}
-						);
-					}
-					else{
-						res.end('you cant friend yourself');
-					}
-				}
-			}
-			catch (err) {
-				console.log('V1 Error friendrequest: ' + err);
-			}
-		}
-	);
+//send friend request
+function friendRequest(client, res, username, ticket, friendname) {
+    if (username == friendname) {
+        res.end('eInvalid Arguments');
+        return;
+    }
+    
+    //confirm user
+    client.query('SELECT id, ticket FROM users WHERE (username = ? AND ticket = ?) OR username = ?',
+        [username, ticket, friendname],
+        function friendRequestCheckUser(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                return;
+            }
+            
+            if (result.length != 2) {
+                res.end('eUser not found');
+            }
+            else {
+                if (result[0].ticket == ticket) {
+                    user1 = result[0].id;
+                    user2 = result[1].id;
+                }
+                else {
+                    user1 = result[1].id;
+                    user2 = result[0].id;
+                }
+                
+                checkFriendRequest(client, res, user1, user2);
+            }
+        }
+    );
 }
 
-
-function friendaccept(client, res, username, ticket, friendname) {
-	//we get our id from this
-	TicketConfirmation(client, username, ticket,
-		function (err, result) {
-			try {
-				if (err || !result) {
-					res.end('fail1');
-				}
-				else {
-					//select id of the target friend
-					client.query('SELECT id FROM users WHERE username=?', [friendname],
-						function (err, result2) {
-							try {
-								if (err || !result2) {
-									res.end('fail2');
-								}
-								else {
-									//checking if already friends
-									client.query('UPDATE friends SET accepted=1 WHERE user_id=? AND friend_id=? AND accepted=0', [result.id, result2[0].id],
-										function (err, result3) {
-											try {
-												if (err || result3[0] != 1) {
-													res.end('already friends');
-												}
-												else {
-													res.end('success');
-												}
-											}
-											catch (err) {
-												console.log('V1 Error friendaccept 2nd query: ' + err);
-											}
-										}
-									);
-								}
-							}
-							catch (err) {
-								console.log('V1 Error friendaccept 1st query: ' + err);
-							}
-						}
-					);
-				}
-			}
-			catch (err) {
-				console.log('V1 Error friendaccept: ' + err);
-			}
-		}
-	);
+function checkFriendRequest(client, res, user1, user2) {
+    client.query('SELECT user_id FROM friends WHERE (user_id = ? AND friend_id = ?) OR (friend_id = ? AND user_id = ?)',
+        [user1, user2, user1, user2],
+        function checkedFriendRequest(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            if (result.length == 0) {
+                makeFriendRequest(client, res, user1, user2);
+            }
+            else {
+                res.end('eAlready Friends');
+            }
+        }
+    );
 }
 
-function getfriends(client, res, username, ticket) {
-	//we get our id from this
-	TicketConfirmation(client, username, ticket,
-		function (err, result) {
-			try {
-				if (err || !result) {
-					res.end('fail');
-				}
-				else {
-					//selecting the id's of your friends that are accepted
-					client.query('SELECT * FROM users INNER JOIN friends ON (friends.friend_id = users.id AND friends.user_id = ?) OR (friends.user_id = users.id AND friends.friend_id = ?) WHERE accepted=1', [result.id, result.id],
-						function (err, result2) {
-							try {
-								if (err || !result2[0]) {
-									res.end('fail');
-								}
-								else {
-									res.end(result2[0].username);
-								}
-							}
-							catch (err) {
-								console.log('V1 Error getfriends 2nd query: ' + err);
-							}
-						}
-					);
-				}
-			}
-			catch (err) {
-				console.log('V1 Error getfriends: ' + err);
-			}
-		}
-	);
+function makeFriendRequest(client, res, user1, user2) {
+    client.query('INSERT INTO friends (user_id, friend_id) VALUES(?, ?)',
+        [user1, user2],
+        function madeFriendRequest(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            res.end('s');
+        }
+    );
 }
 
+//accept friend request
+function friendAccept(client, res, username, ticket, friendname) {
+    client.query('UPDATE friends ' +
+        'INNER JOIN users AS u1 ON friends.user_id = u1.id ' + 
+        'INNER JOIN users AS u2 ON friends.friend_id = u2.id ' +
+        'SET friends.accepted = 1 ' +
+        'WHERE u1.username = ? AND u1.ticket = ? AND u2.username = ?',
+        [username, ticket, friendname],
+        function friendAccepted(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            res.end('s');
+        }
+    );
+}
+
+//get friends
+function getFriends(client, res, username, ticket) {
+    client.query('SELECT u1.username AS username, friends.accepted AS accepted '+
+        'INNER JOIN users AS u1 ON friends.user_id = u1.id OR friends.friend_id = u1.id ' +
+        'INNER JOIN users AS u2 ON friends.user_id = u2.id OR friends.friend_id = u2.id ' +
+        'WHERE u2.username = ? AND u2.ticket = ? ' +
+        'ORDER BY friends.accepted ASC',
+        [username, ticket],
+        function gotFriends(err, results) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            out = ""
+            prev = true;
+            for (result in results) {
+                if (prev != result.accepted) {
+                    prev = result.accepted;
+                    out += ";";
+                }
+                out += ";" + result.username;
+            }
+            
+            res.end('s' + out.substring(1));
+        }
+    );
+}
+
+//unfriend
 function unfriend(client, res, username, ticket, friendname) {
-	//we get our id from this
-	TicketConfirmation(client, username, ticket,
-		function (err, result) {
-			try {
-				if (err || !result) {
-					res.end('fail');
-				}
-				else {
-					//select id of the target friend
-					client.query('SELECT id FROM users WHERE username=?', [friendname],
-						function (err, result2) {
-							try {
-								if (err || !result2) {
-									res.end('fail');
-								}
-								else {
-									//deleting the friend
-									client.query('DELETE FROM friends WHERE user_id=? AND friend_id=? AND accepted=1', [result.id, result2[0].id],
-										function (err, result3) {
-											try {
-												if (err || !result3) {
-													res.end('fail' + err);
-												}
-												else {
-													res.end('success');
-												}
-											}
-											catch (err) {
-												console.log('V1 Error unfriend 2nd query: ' + err);
-											}
-										}
-									);
-								}
-							}
-							catch (err) {
-								console.log('V1 Error unfriends 1st query: ' + err);
-							}
-						}
-					);
-				}
-			}
-			catch (err) {
-				console.log('V1 Error unfriends: ' + err);
-			}
-		}
-	);
-}
-
-/*=================================
-            Server List
-=================================*/
-
-var serverList = {};
-
-function Server(ip, port, name, comment, map, mode, maxPlayers, currentPlayers) {
-    this.ip = ip;
-    this.port = port;
-    this.name = name;
-    this.comment = comment;
-    this.map = map;
-    this.mode = mode;
-    this.playerLimit = maxPlayers;
-    this.connectedPlayers;
-}
-
-function registerServer(res, ip, port, name, comment, map, mode, playerLimit, connectedPlayers) {
-    try {
-        serverList[ip] = new Server(ip, port, name, comment, map, mode, playerLimit, connectedPlayers);
-        res.end(Object.keys(serverList).length + '');
-    }
-    catch (err) {
-        console.log('V1 Error registering server: ' + err);
-    }
-}
-
-function updateServer(res, ip, name, comment, map, mode, playerLimit, connectedPlayers) {
-    try {
-        serverList[ip].name = name;
-        serverList[ip].comment = comment;
-        serverList[ip].map = map;
-        serverList[ip].mode = mode;
-        serverList[ip].playerLimit = playerLimit;
-        serverList[ip].connectedPlayers = connectedPlayers;
-        res.end('success');
-    }
-    catch (err) {
-        console.log('V1 Error registering server: ' + err);
-    }
-}
-
-function getServerList(res) {
-    try {
-        out = '';
-        for (var key in serverList) {
-            out += serverList[key].ip + '+';
-            out += serverList[key].port + '+';
-            out += serverList[key].name + '+';
-            out += serverList[key].comment + '+';
-            out += serverList[key].map + '+';
-            out += serverList[key].mode + '+';
-            out += serverList[key].playerLimit + '+';
-            out += serverList[key].connectedPlayers + '+';
+    client.query('DELETE FROM friends ' +
+        'INNER JOIN users AS u1 ON u1.id = friends.user_id ' +
+        'INNER JOIN users AS u2 ON u2.id = friends.friend_id ' +
+        'WHERE (u1.username = ? AND u1.ticket = ? AND u2.username = ?) OR ' +
+        '(u2.username = ? AND u2.ticket = ? AND u1.username = ?)',
+        [username, ticket, friendsname, username, ticket, friendname],
+        function unfriended(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            res.end('s');
         }
-        res.end(out);
-        checkServerList();
-    }
-    catch (err) {
-        console.log('V1 Error getting server list: ' + err);
-    }
-}
-
-function checkServerList() {
-    try {
-        for (var key in serverList) {
-            pin(serverList[key].ip + ':' + serverList[key].port)
-                .interval(1000)
-                .down(function(error, response) {
-                    delete serverList[key];
-                });
-        }
-    }
-    catch (err) {
-        console.log('V1 Error checking server list: ' + err);
-    }
+    );
 }
