@@ -22,7 +22,6 @@ user/get_friends (username) return (true/false)
 var v1 = require('./v1');
 
 var http = require('http');
-var https = require('https');
 var fs = require('fs');
 var url = require('url');
 var mysql = require('mysql');
@@ -64,7 +63,7 @@ function server(req, res) {
     });
 }
 
-https.createServer(config.serverConfig, server).listen(3000, '127.0.0.1');
+http.createServer(config.serverConfig, server).listen(3000, '127.0.0.1');
 
 process.on('uncaughtException', function (error) {
   console.error(error.stack);
