@@ -198,8 +198,8 @@ function createUser(client, res, username, password, email, subscription, source
     );
 }
 
-//confirm
-function confirm(client, res, username, secure_code) {
+//confirm user with secure code
+function confirmUser(client, res, username, secure_code) {
     if ('undefined' in [typeof username, typeof secure_code]) {
         res.end('eInvalid Parameters');
         return;
@@ -231,17 +231,13 @@ function changePassword(client, res, username, ticket, newPassword) {
     salt = randomstring(12);
 
     client.query('UPDATE users SET password_hash=?, password_salt=? WHERE username=? AND ticket=?',
-        [hash.sha512(password, salt), salt, username, ticket],
+        [hash.sha512(newPassword, salt), salt, username, ticket],
         function confirmPasswordChange(err, result) {
             if (err || !result) {
                 res.end('eInternal Error');
                 throw err;
             }
-
-            if (result.length !== 1) {
-                res.end('e');
-                return;
-            }
+            
             res.end('s');
         }
     );
