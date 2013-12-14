@@ -20,14 +20,15 @@ function ParseUrl(client, pass, res) {
         pass.pathname = pass.pathname.slice(5);
         ParseAuth(client, pass, res);
     }
-    else if (pass.pathname.slice(0, 7) === '/social') {
-        pass.pathname = pass.pathname.slice(7);
-        ParseSocial(client, pass, res);
-    }
     //--Outpost Game--
     else if (pass.pathname.slice(0, 8) === '/outpost') {
         pass.pathname = pass.pathname.slice(8);
         ParseOutpost(client, pass, res);
+    }
+    //--Social--
+    else if (pass.pathname.slice(0, 7) === '/social') {
+        pass.pathname = pass.pathname.slice(7);
+        ParseSocial(client, pass, res);
     }
     //--Error--
     else {
@@ -364,6 +365,61 @@ function GetGlobalData(client, res) {
     );
 }
 
+/* ===============================
+		    Social
+=================================*/
+
+//v1/social
+// - friend
+// -   request
+// -   accept
+// -   unfriend
+
+function ParseSocial(client, pass, res) {
+    if (pass.pathname == "/friend/request") {
+        FriendRequest(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+    }
+    else if (pass.pathname == "/friend/accept") {
+        FriendAccept(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+    }
+    else if (pass.pathname == "/friend/unfriend") {
+        Unfriend(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+    }
+}
+
+function FriendRequest(client, res, username, ticket, friendname) {
+    client.query('SELECT username, ticket FROM users WHERE username=? AND ticket=?',
+                 [username, ticket],
+        function ConfirmUserFriendRequest(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+            }
+            else if (result.length != 1) {
+                res.end('eIllegal user ticket');
+            }
+            else {
+                SendFriendRequest(client, res, username, friendname);
+            }
+        }
+    );
+}
+
+function SendFriendRequest(client, res, username, friendname) {
+    client.query('INSERT INTO friends (user_id, friend_id)' +
+                 'SELECT users.id, users.username FROM users WHERE users.username=?' +
+                 'SELECT friends.id, friend.username FROM users AS friends WHERE friends.username=?' +
+                 'VALUES (users.id, friends.id)', [username, friendname],
+        function ConfirmSendFriendRequest(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+            }
+            else {
+                res.end('s');
+            }
+        }
+    );
+}
+
 //--------------------------------------------------FUTURE-------------------------------------------------------------------
 
 /* ===============================
@@ -637,7 +693,7 @@ function AddGameData(client, res, data) {
 /*=================================
 			Social
 =================================*/
-
+/*
 function ParseSocial(client, pass, res) {
     switch (pass.pathname) {
     case '/friend_request':
@@ -670,7 +726,7 @@ function ParseSocial(client, pass, res) {
     default:
         res.end('eInvalid URL');
     }
-}
+}*/
 
 //send friend request
 function friendRequest(client, res, username, ticket, friendname) {
