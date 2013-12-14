@@ -31,23 +31,25 @@ var confu = require('confu');
 //Load configuration using json parser
 //If configuration doesn't exist -> crash
 try {
-	var config = confu(__dirname, 'app.conf');
+	config = confu(__dirname, 'app.conf');
 }
 catch (err) {
 	throw new Error("Application configuration file does not exist (app.conf)" + err);
 }
 
-var pool = mysql.createPool(config.mySQLConfig);
+pool = mysql.createPool(config.mySQLConfig);
 
 function server(req, res) {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    pass = url.parse(req.url, true);
+    pass.pathname = pass.pathname.toLowerCase();
+    
+    console.log('request at: ' + pass.pathname + ' from ' + req.headers['user-agent'] + '\n');
+    
     pool.getConnection(function (err, client) {
+        if (err) throw err;
+        
         res.on('end', client.release);
-        
-        res.writeHead(200, {'Content-Type': 'text/plain'});
-        var pass = url.parse(req.url, true);
-        pass.pathname = pass.pathname.toLowerCase();
-        
-        console.log('request at: ' + pass.pathname + ' from ' + req.headers['user-agent'] + '\n');
         
         if (pass.pathname.slice(0, 3) == '/v1') {
             pass.pathname = pass.pathname.slice(3);
@@ -63,7 +65,7 @@ function server(req, res) {
     });
 }
 
-http.createServer(config.serverConfig, server).listen(3000, '127.0.0.1');
+http.createServer(server).listen(3000, '127.0.0.1');
 
 process.on('uncaughtException', function (error) {
   console.error(error.stack);
