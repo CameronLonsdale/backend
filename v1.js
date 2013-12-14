@@ -376,18 +376,28 @@ function GetGlobalData(client, res) {
 // -   unfriend
 
 function ParseSocial(client, pass, res) {
-    if (pass.pathname == "/friend/request") {
+    switch  (pass.pathname) {
+    case '/friend/request':
         FriendRequest(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
-    }
-    else if (pass.pathname == "/friend/accept") {
+    break;
+    case '/friend/accept':
         FriendAccept(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
-    }
-    else if (pass.pathname == "/friend/unfriend") {
+    break;
+    case '/friend/unfriend':
         Unfriend(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+    break;
+    
+    default:
+        res.end('eInvalid URL');
     }
 }
 
 function FriendRequest(client, res, username, ticket, friendname) {
+    if (username === friendname) {
+        res.end('eInvalid Friend');
+        return;
+    }
+    
     client.query('SELECT username, ticket FROM users WHERE username=? AND ticket=?',
                  [username, ticket],
         function ConfirmUserFriendRequest(err, result) {
