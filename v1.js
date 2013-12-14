@@ -426,6 +426,44 @@ function SendFriendRequest(client, res, username, friendname) {
     );
 }
 
+function FriendAccept(client, res, username, ticket, friendname) {
+    client.query('SELECT users.id, users.username, ticket FROM users WHERE users.username=? AND ticket=?' +
+                 'SELECT friends.id, friend.username FROM users AS friends WHERE friends.username=?' +
+                 'UPDATE friends SET accepted=1 WHERE user_id=friends.id AND friend_id=users.id AND accepted=0',
+        [username, ticket, friendname],
+        function ConfirmFriendAccept(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+            }
+            else if (result.length != 1) {
+                res.end('eIllegal user ticket or already friends');
+            }
+            else {
+                res.end('s');
+            }
+        }
+    );
+}
+
+function Unfriend(client, res, username, ticket, friendname) {
+    client.query('SELECT ticket, username FROM users WHERE username=? AND ticket=?' +
+                 'DELETE FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)',
+        [username, ticket, username, friendname, friendname, username],
+        function ConfirmUnFriend(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+            }
+            else if (result.length != 1) {
+                res.end('eIllegal user ticket');
+            }
+            else {
+                res.end('s');
+            }
+        }
+    );
+}
+                
+
 //--------------------------------------------------FUTURE-------------------------------------------------------------------
 
 /* ===============================
