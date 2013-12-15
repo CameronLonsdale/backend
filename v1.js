@@ -388,6 +388,8 @@ function ParseSocial(client, pass, res) {
     }
 }
 
+// bug: multiple identical friend requests can be sent
+// solution: ensure each friend relationship is unique by searching for relationship before request
 function FriendRequest(client, res, username, ticket, friendname) {
     if (username === friendname) {
         res.end('eInvalid Friend');
@@ -402,6 +404,9 @@ function FriendRequest(client, res, username, ticket, friendname) {
             if (err || !result) {
                 res.end('eInternal Error');
                 throw err;
+            }
+            else if (result.length != 1) {
+                res.end('eIllegal user ticket');
             }
             else {
                 res.end('s');
@@ -420,7 +425,7 @@ function FriendAccept(client, res, username, ticket, friendname) {
                 throw err;
             }
             else if (result.length != 1) {
-                res.end('eIllegal user ticket or already friends');
+                res.end('eIllegal user ticket, already friends or no friend request was sent');
             }
             else {
                 res.end('s');
@@ -430,11 +435,10 @@ function FriendAccept(client, res, username, ticket, friendname) {
 }
 
 
-//'SELECT ticket, username FROM users WHERE username=? AND ticket=? ' +
 function Unfriend(client, res, username, ticket, friendname) {
     client.query('DELETE FROM friends WHERE ' +
-                 '(user_id=(SELECT u.id AND friend_id=?) OR ' +
-                 '(user_id=? AND friend_id=?)',
+                 '(user_id=(SELECT u.id FROM users u WHERE u.username=? AND u.ticket=?) AND friend_id=(SELECT f.id from users f where f.username=?)) OR ' +
+                 '(user_id=(SELECT f.id from users f where f.username=?) AND friend_id=(SELECT u.id FROM users u WHERE u.username=? AND u.ticket=?))',
         [username, ticket, username, friendname, friendname, username],
         function ConfirmUnFriend(err, result) {
             if (err || !result) {
