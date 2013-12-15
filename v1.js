@@ -388,7 +388,7 @@ function ParseSocial(client, pass, res) {
     }
 }
 
-// bug: multiple identical friend requests can be sent
+// issue: multiple identical friend requests can be sent
 // solution: ensure each friend relationship is unique by searching for relationship before request
 function FriendRequest(client, res, username, ticket, friendname) {
     if (username === friendname) {
@@ -405,8 +405,8 @@ function FriendRequest(client, res, username, ticket, friendname) {
                 res.end('eInternal Error');
                 throw err;
             }
-            else if (result.length != 1) {
-                res.end('eIllegal user ticket');
+            else if (!result.affectedRows) {
+                res.end('Illegal user ticket or friend does not exist');
             }
             else {
                 res.end('s');
@@ -415,6 +415,7 @@ function FriendRequest(client, res, username, ticket, friendname) {
     );
 }
 
+// automatically handles multiple identical friend requests
 function FriendAccept(client, res, username, ticket, friendname) {
     client.query('UPDATE friends SET accepted=1 WHERE user_id=(SELECT f.id FROM users f WHERE f.username=?) AND ' +
                  'friend_id=(SELECT u.id FROM users u WHERE u.username=? AND ticket=?) AND accepted=0',
@@ -424,7 +425,7 @@ function FriendAccept(client, res, username, ticket, friendname) {
                 res.end('eInternal Error');
                 throw err;
             }
-            else if (result.length != 1) {
+            else if (!result.affectedRows) {
                 res.end('eIllegal user ticket, already friends or no friend request was sent');
             }
             else {
@@ -434,19 +435,19 @@ function FriendAccept(client, res, username, ticket, friendname) {
     );
 }
 
-
+// automatically handles multiple identical friend requests
 function Unfriend(client, res, username, ticket, friendname) {
     client.query('DELETE FROM friends WHERE ' +
                  '(user_id=(SELECT u.id FROM users u WHERE u.username=? AND u.ticket=?) AND friend_id=(SELECT f.id from users f where f.username=?)) OR ' +
                  '(user_id=(SELECT f.id from users f where f.username=?) AND friend_id=(SELECT u.id FROM users u WHERE u.username=? AND u.ticket=?))',
-        [username, ticket, username, friendname, friendname, username],
+        [username, ticket, friendname, friendname, username, ticket],
         function ConfirmUnFriend(err, result) {
             if (err || !result) {
                 res.end('eInternal Error');
                 throw err;
             }
-            else if (result.length != 1) {
-                res.end('eIllegal user ticket');
+            else if (!result.affectedRows) {
+                res.end('eIllegal user ticket or already not friends');
             }
             else {
                 res.end('s');
