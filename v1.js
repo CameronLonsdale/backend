@@ -255,12 +255,18 @@ function ParseOutpost(client, pass, res) {
 
     //characters
     case '/characters/get':
-        fetch(client, res, pass.query.username);
+        fetch(client, res, pass.query.username.toLowerCase());
     break;
     
     //game
     case '/game/save':
-        SaveGame(client, res, pass.query.data);
+        SaveGame(client, res, pass.query.username.toLowerCase(), pass.query.ticket, pass.query.data);
+    break;
+    
+    case '/game/client':
+        SaveGameStats(client, res, pass.query.username.toLowerCase(), pass.query.ticket,
+                      pass.query.clientname.toLowerCase(), pass.query.secure_code,
+                      pass.query.data);
     break;
     
     //global
@@ -312,7 +318,8 @@ function SetCharacterData(client, res, username, name, gender) {
 
 //Game functions
 
-function SaveGame(client, res, data) {
+function SaveGame(client, res, username, ticket, data) {
+    //save data
     data = data.split(' ');
     if (data.length === 7) {
         map = parseInt(data[0]);
@@ -337,6 +344,73 @@ function SaveGame(client, res, data) {
     }
     else {
         res.end('eInvalid Data');
+    }
+}
+
+function SaveGameStats(client, res, username, ticket, clientname, secure_code, data) {
+    if (username !== clientname) {
+        res.end('eInvalid Users');
+        return;
+    }
+    
+    //parse data
+    data = data.split(' ');
+    if (data.length >= 1) {
+        experience = parseFloat(data[0]);
+        
+        guns = [];
+        for (i = 1; i < data.length; i += 5) {
+            gun = {};
+            
+            gun.id = data[i + 0]
+            gun.kills = data[i + 1];
+            gun.deaths = data[i + 2];
+            gun.slkills = data[i + 3];
+            gun.sldeaths = data[i + 4];
+            
+            guns.add(gun);
+        }
+    }
+    else {
+        res.end('eInvalid Data');
+        return;
+    }
+    
+    //update data
+    client.query('UPDATE outpost_characters SET exp = exp + ? ' +
+                 '(SELECT id FROM users WHERE username=? AND secure_code=?) = user_id' +
+                 '(SELECT SUM(id) FROM users WHERE username=? AND ticket=?) = 1',
+                 [experience, clientname, secure_code, username, ticket],
+        function SavedGameStats(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            SaveGunStats(client, clientname, guns);
+            res.end('s');
+        }
+    );
+}
+
+function SaveGunStats(client, username, guns) {
+    for (gun in guns) {
+        client.query('UPDATE outpost_guns SET ' +
+                     'kills = kills + ?, ' +
+                     'deaths = deaths + ?, ' +
+                     'sl_kills = sl_kills + ?, ' +
+                     'sl_deaths = sl_deaths + ? ' +
+                     'WHERE gun_id = ? AND ' +
+                     'outpost_character_id = ' + 
+                     '(SELECT id FROM outpost_characters WHERE user_id = ' +
+                     '(SELECT id FROM users WHERE username = ?))',
+                     [gun.kills, gun.deaths, gun.slkills, gun.sldeaths, username],
+            function SavedGunStats(err, result) {
+                if (err || !result) {
+                    throw err;
+                }
+            }
+        );
     }
 }
 

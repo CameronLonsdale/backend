@@ -81,7 +81,6 @@ function createTables() {
 		'id INT UNSIGNED NOT NULL auto_increment, ' +
 		'user_id INT UNSIGNED NOT NULL, ' +
 		'name varchar(64) NOT NULL, ' +
-		'level INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'exp INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'gender INT UNSIGNED NOT NULL DEFAULT 0,' +
 		'PRIMARY KEY (id, user_id), ' +
@@ -125,7 +124,6 @@ function createTables() {
 		}
     );
     
-    /*
 	console.log('creating table');
 	client.query('CREATE TABLE outpost_guns(' +
 		'id INT UNSIGNED NOT NULL auto_increment, ' +
@@ -133,11 +131,8 @@ function createTables() {
 		'outpost_character_id INT UNSIGNED NOT NULL, ' +
 		'kills INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'deaths INT UNSIGNED NOT NULL DEFAULT 0, ' +
-		'skill_level_kills INT UNSIGNED NOT NULL DEFAULT 0, ' +
-		'skill_level_deaths INT UNSIGNED NOT NULL DEFAULT 0, ' +
-		'hits INT UNSIGNED NOT NULL DEFAULT 0, ' +
-		'misses INT UNSIGNED NOT NULL DEFAULT 0, ' +
-		'headshots INT UNSIGNED NOT NULL DEFAULT 0, ' +		
+		'sl_kills INT UNSIGNED NOT NULL DEFAULT 0, ' +
+		'sl_deaths INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'PRIMARY KEY (id), ' +
 		'FOREIGN KEY (outpost_character_id) REFERENCES outpost_characters(id)' +
 		');', 
@@ -146,7 +141,6 @@ function createTables() {
             console.log('created guns');
 		}
 	);
-	*/
 }
 
 if (client) {
