@@ -435,22 +435,24 @@ function GetGlobalData(client, res) {
 // -   request
 // -   accept
 // -   unfriend
-// -   get
+// -   getfriends
 
 function ParseSocial(client, pass, res) {
     switch  (pass.pathname) {
-    case '/friend/request':
-        FriendRequest(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
-    break;
-    case '/friend/accept':
-        FriendAccept(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
-    break;
-    case '/friend/unfriend':
-        Unfriend(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
-    break;
-    
-    default:
-        res.end('eInvalid URL');
+        case '/friend/request':
+            FriendRequest(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+            break;
+        case '/friend/accept':
+            FriendAccept(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+            break;
+        case '/friend/unfriend':
+            Unfriend(client, res, pass.query.username, pass.query.ticket, pass.query.friendname);
+            break;
+        case '/friend/getfriends':
+            GetFriends(client, res, pass.query.username, pass.query.ticket);
+            break;
+        default:
+            res.end('eInvalid URL');
     }
 }
 
@@ -472,7 +474,7 @@ function FriendRequest(client, res, username, ticket, friendname) {
                 throw err;
             }
             else if (!result.affectedRows) {
-                res.end('Illegal user ticket or friend does not exist');
+                res.end('eIllegal user ticket or friend does not exist');
             }
             else {
                 res.end('s');
@@ -522,6 +524,23 @@ function Unfriend(client, res, username, ticket, friendname) {
     );
 }
 
+function GetFriends(client, res, username, ticket) {
+    client.query('SELECT username FROM users JOIN friends ON ' +
+                 '(user_id=id AND friend_id=(SELECT id from users WHERE username=? AND ticket=?)) OR ' +
+                 '(friend_id=id AND user_id=(SELECT id from users WHERE username=? AND ticket=?))',
+        [username, ticket, username, ticket],
+        function ConfirmGetFriends(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            else {
+                friends = result.map(function(i){return i.username});
+                res.end(friends.length ? 's'+friends.join() : 'eIllegal user ticket or no friends');
+            }
+        }
+    );
+}
 
 //--------------------------------------------------FUTURE-------------------------------------------------------------------
 
