@@ -282,27 +282,16 @@ function ParseOutpost(client, pass, res) {
 
 //character functions
 function CreateCharacter(client, id, end, error) {
-    client.query('SELECT id FROM outpost_characters WHERE user_id=?', [id],
-        function makeNewCharacter(err, result) {
+    client.query('INSERT INTO outpost_characters (user_id, name) ' +
+                 'SELECT users.id, users.username FROM users WHERE users.id = ? AND ', 
+                 '(SELECT SUM(id) FROM outpost_characters WHERE user_id = ?) = 0',
+                 [id, id],
+        function confirmCharacterCreation(err, result) {
             if (err || !result) {
                 error();
-                return;
-            }
-
-            if (result.length === 1) {
-                end();
             }
             else {
-                client.query('INSERT INTO outpost_characters (user_id, name) SELECT users.id, users.username FROM users WHERE users.id = ?', [id],
-                    function confirmCharacterCreation(err, result) {
-                        if (err || !result) {
-                            error();
-                        }
-                        else {
-                            end();
-                        }
-                    }
-                );
+                end();
             }
         }
     );
@@ -331,7 +320,9 @@ function SaveGame(client, res, username, ticket, data) {
         gameLength = parseFloat(data[6]);
         
         client.query('INSERT INTO outpost_games (map, game_mode, team1_kills, team2_kills, team1_deaths, team2_deaths, game_length)' + 
-            'VALUES (?, ?, ?, ?, ?, ?, ?)', [map, gameMode, team1Kills, team2Kills, team1Deaths, team2Deaths, gameLength],
+                      'VALUES (?, ?, ?, ?, ?, ?, ?) ',
+                      'WHERE (SELECT SUM(id) FROM users WHERE username=? AND ticket=?) = 1',
+                      [map, gameMode, team1Kills, team2Kills, team1Deaths, team2Deaths, gameLength, username, ticket],
             function confirmGameSave(err, result) {
                 if (err || !result) {
                     res.end('eInternal Error');
@@ -444,6 +435,7 @@ function GetGlobalData(client, res) {
 // -   request
 // -   accept
 // -   unfriend
+// -   get
 
 function ParseSocial(client, pass, res) {
     switch  (pass.pathname) {
