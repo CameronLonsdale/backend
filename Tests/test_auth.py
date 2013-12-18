@@ -1,6 +1,7 @@
 from __future__ import print_function
 from Parse import Parse
 from requests import get as WWW
+import os
 
 def make_user(target):
     www = WWW(target + "/auth/register?username=test_test_test&password=lol&email=test@test.com&subscription=0&source=test")
