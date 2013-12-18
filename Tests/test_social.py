@@ -37,7 +37,7 @@ def main(target):
     u1 = make_user(target, "user1", "1", "user1@user1.com")
     u2 = make_user(target, "user2", "2", "user2@user2.com")
     
-    if len(get_friends(target, "user1")) != 0:
+    if len(get_friends(target, "user1")) != 1:
         raise Exception("Friend Get Failed")
     
     if not friend_request(target, "user1", u1[0], "user2"):

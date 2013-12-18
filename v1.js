@@ -529,7 +529,7 @@ function Unfriend(client, res, username, ticket, friendname) {
 
 //TODO: Also has to return whether it's accepted or not
 function GetFriends(client, res, username) {
-    client.query('SELECT username FROM users JOIN friends ON ' +
+    client.query('SELECT users.username, friends.accepted FROM users, friends WHERE ' +
                  '(user_id=id AND friend_id=(SELECT id from users WHERE username=?)) OR ' +
                  '(friend_id=id AND user_id=(SELECT id from users WHERE username=?))',
         [username, ticket, username],
@@ -539,8 +539,8 @@ function GetFriends(client, res, username) {
                 throw err;
             }
             
-            friends = result.map(function(i){return i.username});
-            res.end(friends.length ? 's' + friends.join(";"): 'eIllegal user ticket or no friends');
+            friends = result.map(function(i){return i.username + ";" + i.accepted});
+            res.end('s' + friends.join(";"));
         }
     );
 }
