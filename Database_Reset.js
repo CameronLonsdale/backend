@@ -126,14 +126,13 @@ function createTables() {
     
 	console.log('creating table');
 	client.query('CREATE TABLE outpost_guns(' +
-		'id INT UNSIGNED NOT NULL auto_increment, ' +
 		'gun_id INT SIGNED NOT NULL, ' +
 		'outpost_character_id INT UNSIGNED NOT NULL, ' +
 		'kills INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'deaths INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'sl_kills INT UNSIGNED NOT NULL DEFAULT 0, ' +
 		'sl_deaths INT UNSIGNED NOT NULL DEFAULT 0, ' +
-		'PRIMARY KEY (id), ' +
+        'INDEX id (gun_id, outpost_character_id), ' +
 		'FOREIGN KEY (outpost_character_id) REFERENCES outpost_characters(id)' +
 		');', 
 		function(err) {

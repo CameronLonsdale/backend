@@ -43,32 +43,33 @@ function ParseUrl(client, pass, res) {
 function ParseAuth(client, pass, res) {
     switch (pass.pathname) {
     case '/login':
-        login(client, res,
-            pass.query.username.toLowerCase(),
-            pass.query.password,
-            pass.query.source
+        Login(client, res,
+              pass.query.username.toLowerCase(),
+              pass.query.password
         );
     break;
     case '/register':
-        register(client, res,
-            pass.query.username.toLowerCase(),
-            pass.query.password,
-            pass.query.email.toLowerCase(),
-            parseInt(pass.query.subscription),
-            pass.query.source
+        Register(client, res,
+                 pass.query.username.toLowerCase(),
+                 pass.query.password,
+                 pass.query.email.toLowerCase(),
+                 parseInt(pass.query.subscription)
         );
     break;
+    case '/check_free_name':
+        CheckFreeUsername(client, res, pass.query.username.toLowerKey());
+    break;
     case '/confirm':
-        confirmUser(client, res,
-            pass.query.username.toLowerCase(),
-            pass.query.secure_code
+        ConfirmUser(client, res,
+                    pass.query.username.toLowerCase(),
+                    pass.query.secure_code
         );
     break;
     case '/changepassword':
-        changePassword(client, res,
-            pass.query.username.toLowerCase(),
-            pass.query.ticket,
-            pass.query.new_password
+        ChangePassword(client, res,
+                       pass.query.username.toLowerCase(),
+                       pass.query.ticket,
+                       pass.query.new_password
         );
     break;
     default:
@@ -76,14 +77,32 @@ function ParseAuth(client, pass, res) {
     }
 }
 
+function CheckFreeUsername(client, res, username) {
+    client.query('SELECT id FROM users WHERE username=?',
+                 [username],
+        function (err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            if (result.length === 0) {
+                res.end('s1');
+            }
+            else {
+                res.end('s0');
+            }
+        }
+    );
+}
+
 //Login
-function login(client, res, username, password, source) {
+function Login(client, res, username, password) {
     //check for invalid parameters
     if ('undefined' in [typeof username, typeof password]) {
         res.end('eInvalid Parameters')
         return;
     }
-    if (typeof source === 'undefined') {source = 'browser'; }
 
 	client.query('SELECT password_salt, password_hash, id FROM users WHERE username=? AND confirmed=1', [username],
         function loginCheckPassword(err, result) {
@@ -115,13 +134,6 @@ function login(client, res, username, password, source) {
                         error = function FailLogin() {
                             res.end('eInternal Error');
                         }
-
-                        if (source == 'outpost') {
-                            CreateCharacter(client, result.id, end, error);
-                        }
-                        else {
-                            end();
-                        }
                     }
                 );
             }
@@ -133,13 +145,12 @@ function login(client, res, username, password, source) {
 }
 
 //register
-function register(client, res, username, password, email, subscription, source) {
+function Register(client, res, username, password, email, subscription) {
     //check for invalid parameters
     if ('undefined' in [typeof username, typeof password, typeof email, typeof subscription]) {
         res.end('eInvalid Parameters')
         return;
     }
-    if (typeof source === 'undefined') {source = 'browser'; }
     
     if (check(email).len(6, 64).isEmail()) {
         //check duplicates
@@ -158,7 +169,7 @@ function register(client, res, username, password, email, subscription, source) 
                     res.end('eUsername already exists');
                     return;
                 }
-                createUser(client, res, username, password, email, subscription, source);
+                createUser(client, res, username, password, email, subscription);
             }
         );
     }
@@ -167,7 +178,7 @@ function register(client, res, username, password, email, subscription, source) 
     }
 }
 
-function createUser(client, res, username, password, email, subscription, source) {
+function CreateUser(client, res, username, password, email, subscription) {
     salt = randomstring(12);
     ticket = randomstring(32);
     secureCode = randomstring(32);
@@ -187,19 +198,12 @@ function createUser(client, res, username, password, email, subscription, source
             error = function FailLogin() {
                 res.end('eInternal Error 2');
             }
-
-            if (source == 'outpost') {
-                CreateCharacter(client, result.insertId, end, error);
-            }
-            else {
-                end();
-            }
         }
     );
 }
 
 //confirm user with secure code
-function confirmUser(client, res, username, secure_code) {
+function ConfirmUser(client, res, username, secure_code) {
     if ('undefined' in [typeof username, typeof secure_code]) {
         res.end('eInvalid Parameters');
         return;
@@ -222,7 +226,7 @@ function confirmUser(client, res, username, secure_code) {
 }
 
 //change password
-function changePassword(client, res, username, ticket, newPassword) {
+function ChangePassword(client, res, username, ticket, newPassword) {
     if ('undefined' in [typeof username, typeof ticket, typeof newPassword]) {
         res.end('eInvalid Parameters');
         return;
@@ -255,7 +259,15 @@ function ParseOutpost(client, pass, res) {
 
     //characters
     case '/characters/get':
-        fetch(client, res, pass.query.username.toLowerCase());
+        GetCharacterData(client, res, pass.query.username.toLowerCase());
+    break;
+    case '/character/set':
+        SetCharacterData(client, res, pass.query.username.toLowerCase(),
+                         pass.query.ticket, pass.query.name,
+                         pass.query.gender);
+    break;
+    case '/character/get_free_name':
+        CheckFreeCharacterName(client, query, pass.query.name);
     break;
     
     //game
@@ -279,33 +291,86 @@ function ParseOutpost(client, pass, res) {
     }
 }
 
-//character functions
-function CreateCharacter(client, id, end, error) {
-    client.query('INSERT INTO outpost_characters (user_id, name) ' +
-                 'SELECT users.id, users.username FROM users WHERE users.id = ? AND ', 
-                 '(SELECT SUM(id) FROM outpost_characters WHERE user_id = ?) = 0',
-                 [id, id],
-        function confirmCharacterCreation(err, result) {
+function GetCharacterData(client, res, username) {
+    client.query('SELECT name, exp, gender FROM characters ' +
+                 'WHERE user_id=(SELECT id FROM users WHERE username=?)',
+                 [username],
+        function GottenCharacterData(err, result) {
             if (err || !result) {
-                error();
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            if (result.length != 1) {
+                res.end('eInvalid User');
             }
             else {
-                end();
+                result = result[0];
+                result = [result.name, result.exp, result.username].join(';');
+                
+                GetCharacterGunData(client, res, username, result);
             }
         }
     );
 }
 
-function GetCharacterData(client, res, username) {
-    
+function GetCharacterGunData(client, res, username, out) {
+    client.query('SELECT gun_id, kills, deaths, sl_kills, sl_deaths ' +
+                 'FROM outpost_guns ' +
+                 'WHERE outpost_character_id=(SELECT id FROM outpost_characters ' +
+                 'WHERE user_id=(SELECT id FROM users WHERE username=?))',
+                 [username],
+        function GottenCharacterGunData(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            for (res in result) {
+                out += ';' + [res.gun_id, res.kills, res.deaths, res.sl_kills, res.sl_deaths].join(';');
+            }
+            
+            res.end('s' + out);
+        }
+    );
 }
 
-function SetCharacterData(client, res, username, name, gender) {
-    
+function CheckFreeCharacterName(client, res, name) {
+    client.query('SELECT id FROM outpost_characters WHERE name=?',
+                 [name],
+        function (err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            if (result.length === 0) {
+                res.end('s1');
+            }
+            else {
+                res.end('s0');
+            }
+        }
+    );
+}
+
+function SetCharacterData(client, res, username, ticket, name, gender) {
+    client.query('UPDATE outpost_characters SET ' +
+                 'name=?, gender=? ' +
+                 'WHERE user_id=(SELECT id FROM users WHERE username=? AND ticket=?)',
+                 [name, gender, username, ticket],
+        function CompleteCharacterSetData(err, result) {
+            if (err || !result) {
+                res.end('eInternal Error');
+                throw err;
+            }
+            
+            res.end('s');
+        }
+    );
 }
 
 //Game functions
-
 function SaveGame(client, res, username, ticket, data) {
     //save data
     data = data.split(' ');
@@ -319,9 +384,9 @@ function SaveGame(client, res, username, ticket, data) {
         gameLength = parseFloat(data[6]);
         
         client.query('INSERT INTO outpost_games (map, game_mode, team1_kills, team2_kills, team1_deaths, team2_deaths, game_length)' + 
-                      'VALUES (?, ?, ?, ?, ?, ?, ?) ',
-                      'WHERE (SELECT SUM(id) FROM users WHERE username=? AND ticket=?) = 1',
-                      [map, gameMode, team1Kills, team2Kills, team1Deaths, team2Deaths, gameLength, username, ticket],
+                     'VALUES (?, ?, ?, ?, ?, ?, ?) ',
+                     'WHERE (SELECT SUM(id) FROM users WHERE username=? AND ticket=?) = 1',
+                     [map, gameMode, team1Kills, team2Kills, team1Deaths, team2Deaths, gameLength, username, ticket],
             function confirmGameSave(err, result) {
                 if (err || !result) {
                     res.end('eInternal Error');
@@ -385,7 +450,11 @@ function SaveGameStats(client, res, username, ticket, clientname, secure_code, d
 
 function SaveGunStats(client, username, guns) {
     for (gun in guns) {
-        client.query('UPDATE outpost_guns SET ' +
+        client.query('INSERT INTO outpost_guns ' +
+                     '(gun_id, kills, deaths, sl_kills, sl_deaths) ' +
+                     'VALUES(?, ?, ?, ?, ?) ' +
+                     'ON DUPLICATE KEY ' +
+                     'UPDATE outpost_guns SET ' +
                      'kills = kills + ?, ' +
                      'deaths = deaths + ?, ' +
                      'sl_kills = sl_kills + ?, ' +
@@ -408,7 +477,8 @@ function GetGlobalData(client, res) {
     client.query('SELECT ' + 
         'COALESCE(SUM(team1_kills), 0) AS t1Kills, ' + 
         'COALESCE(SUM(team2_kills), 0) AS t2Kills, ' + 
-        'COALESCE(SUM(team1_deaths), 0) + COALESCE(SUM(team2_deaths), 0) AS casulties ' + 
+        'COALESCE(SUM(team1_deaths), 0) + COALESCE(SUM(team2_deaths), 0) AS casulties, ' + 
+        'SUM(id) AS games ' +
         'FROM outpost_games', 
         function getTotalKills(err, result) {
             if (err || !result) {
@@ -419,8 +489,9 @@ function GetGlobalData(client, res) {
             casulties = result[0].casulties;
             team1_total = result[0].t1Kills;
             team2_total = result[0].t2Kills;
+            total_games = result[0].games;
             
-            res.end('s' + casulties + ';' + team1_total + ';' + team2_total);
+            res.end('s' + casulties + ';' + team1_total + ';' + team2_total + ";" + total_games);
         }
     );
 }
