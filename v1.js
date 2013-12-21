@@ -534,6 +534,7 @@ function ParseSocial(client, pass, res) {
 
 // issue: multiple identical friend requests can be sent
 // solution: ensure each friend relationship is unique by searching for relationship before request
+// better solution: Make the key pair (user_id and friend_id) unique
 function FriendRequest(client, res, username, ticket, friendname) {
     if (username === friendname) {
         res.end('eInvalid Friend');

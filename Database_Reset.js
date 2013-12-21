@@ -36,6 +36,7 @@ function selectDatabase() {
 }
 function createTables() {
     //----global----
+    
     //AUTHENTICATION
     
 	console.log('creating table');
@@ -65,7 +66,8 @@ function createTables() {
 		'friend_id INT UNSIGNED NOT NULL, ' +
 		'accepted BOOL NOT NULL DEFAULT 0, ' +
 		'FOREIGN KEY (user_id) REFERENCES users(id), ' +
-		'FOREIGN KEY (friend_id) REFERENCES users(id)' +
+		'FOREIGN KEY (friend_id) REFERENCES users(id), ' +
+        'PRIMARY KEY (user_id, friend_id)' +
 		');', 
 		function(err) {
 	  		if (err) { throw err; }
