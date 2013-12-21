@@ -11,7 +11,7 @@ var check = require('validator').check;
 var outpostversion = '0.26';
 
 module.exports = {
-	eval : ParseUrl,
+    eval : ParseUrl,
 }
 
 function ParseUrl(client, pass, res) {
@@ -37,7 +37,7 @@ function ParseUrl(client, pass, res) {
 }
 
 /* ===========================================
-					AUTH
+                    AUTH
 ===============================================*/
 
 function ParseAuth(client, pass, res) {
@@ -104,7 +104,8 @@ function Login(client, res, username, password) {
         return;
     }
 
-	client.query('SELECT password_salt, password_hash, id FROM users WHERE username=? AND confirmed=1', [username],
+	client.query('SELECT password_salt, password_hash, id FROM users WHERE username=? AND confirmed=1',
+                 [username],
         function loginCheckPassword(err, result) {
             if (err || !result) {
                 res.end('eInternal Error');
@@ -154,7 +155,8 @@ function Register(client, res, username, password, email, subscription) {
     
     if (check(email).len(6, 64).isEmail()) {
         //check duplicates
-        client.query('SELECT username, email FROM users WHERE username=? OR email=?', [username, email],
+        client.query('SELECT username, email FROM users WHERE username=? OR email=?',
+                     [username, email],
             function checkDuplicates(err, result) {
                 if (err || !result) {
                     res.end('eInternal Error');
@@ -183,8 +185,9 @@ function CreateUser(client, res, username, password, email, subscription) {
     ticket = randomstring(32);
     secureCode = randomstring(32);
 
-    client.query('INSERT INTO users (username, password_hash, password_salt, email, subscription, ticket, secure_code) VALUES(?, ?, ?, ?, ?, ?, ?)',
-        [username, hash.sha512(password, salt), salt, email, subscription, ticket, secureCode],
+    client.query('INSERT INTO users (username, password_hash, password_salt, email, subscription, ticket, secure_code) ' +
+                 'VALUES(?, ?, ?, ?, ?, ?, ?)',
+                 [username, hash.sha512(password, salt), salt, email, subscription, ticket, secureCode],
         function createUserReturn(err, result) {
             if (err || !result) {
                 res.end('eInternal Error 1');
@@ -612,447 +615,6 @@ function GetFriends(client, res, username) {
             
             friends = result.map(function(i){return i.username + ";" + i.accepted});
             res.end('s' + friends.join(";"));
-        }
-    );
-}
-
-//--------------------------------------------------FUTURE-------------------------------------------------------------------
-
-/* ===============================
-		Helper functions
-=================================*/
-
-function CharacterCreate(client, id, username) {
-    client.query('INSERT INTO outpost_characters (user_id, name) VALUES(?, ?)', [id, username],
-        function (err, result) {
-			try {
-				if (err || !result) {
-					funct(err, null);
-				}
-				else {
-					var err_funct =
-					function (err, result) {
-						try {
-							if (err || !result) {
-								funct(err, null);
-							}
-						}
-						catch (err) {
-							console.log('V1 Error Inserting default gun First query: ' + err);
-						}
-					};
-					client.query('INSERT INTO outpost_guns (outpost_character_id, gun_id) VALUES(?, 1)', [id], err_funct);
-					client.query('INSERT INTO outpost_guns (outpost_character_id, gun_id) VALUES(?, 2)', [id], err_funct);
-					client.query('INSERT INTO outpost_guns (outpost_character_id, gun_id) VALUES(?, -1)', [id], err_funct);
-					client.query('INSERT INTO outpost_guns (outpost_character_id, gun_id) VALUES(?, -2)', [id], err_funct);
-					funct(err, result);
-				}
-
-			}
-			catch (err) {
-				console.log('V1 Error CharacterCreate: ' + err);
-			}
-		}
-	);
-}
-
-function Parser(data) {
-	var result = new Array();
-	game_data = data.split('/');
-	game_info = game_data[0].split(';');
-	parsed = {
-		game_mode : game_info[0],
-		game_length : game_info[1],
-		map : game_info[2]
-	};
-	result.push(parsed);
-	userinfo = game_data[1].split('|');
-	for (element in userinfo) {
-		info = userinfo[element].split(';');
-		parsed = {
-			username : info[0],
-			secure_code : info[1],
-			assists : info[2],
-			experience : info[3],
-			guns : [],
-			vehicles : []
-		};
-		guninfo = info[4].split('~');
-		for (i in guninfo) {
-			gun_info = guninfo[i].split(':');
-			gun = {
-				id : gun_info[0],
-				hits : gun_info[1],
-				misses : gun_info[2],
-				kills : gun_info[3],
-				deaths : gun_info[4],
-				skill_level_kills : gun_info[5],
-				skill_level_deaths : gun_info[6],
-				headshots : gun_info[7],
-				vehicle_kills : gun_info[8]
-			};
-			parsed.guns.push(gun);
-		}
-		vehicledata = info[4].split('^');
-		for (i in vehicledata) {
-			vehicle_info = vehicledata[i].split(':');
-			vehicle = {
-				id : vehicle_info[0],
-				hits : vehicle_info[1],
-				misses : vehicle_info[2],
-				kills : vehicle_info[3],
-				deaths : vehicle_info[4],
-				skill_level_kills : vehicle_info[5],
-				skill_level_deaths : vehicle_info[6],
-				headshots : vehicle_info[7],
-				vehicle_kills : vehicle_info[8]
-			};
-			parsed.vehicles.push(vehicle);
-		}
-		result.push(parsed);
-	}
-	return result;
-}
-
-
-
-/* =======================================
-				Outpost
-=========================================*/
-
-function fetch(client, res, username, ticket) {
-	try {
-		client.query('SELECT * FROM users, outpost_characters, outpost_guns WHERE LOWER(users.username)=LOWER(?)', [username],
-			function (err, result) {
-				try {
-					if (err || !result || result.length != 1) {
-						res.end('fail');
-					}
-					else {
-						guns = '';
-						for (gun in result) {
-							guns += result[gun].id + ':';
-							guns += result[gun].hits + ':' ;
-							guns += result[gun].misses + ':';
-							guns += result[gun].kills + ':';
-							guns += result[gun].deaths + ':';
-							guns += result[gun].skill_level_kills + ':';
-							guns += result[gun].skill_level_deaths + ':';
-							guns += result[gun].headshots + '~';
-						}
-						res.end(result[0].game_mode + ';' +
-								result[0].game_length + ';' +
-								result[0].map + ';' +
-								'/' +
-								result[0].username + ';' +
-								result[0].assists + ';' +
-								result[0].experience + ';' +
-								guns
-						);
-					}
-				}
-				catch (err) {
-					console.log('V1 Error fetching client data: ' + err);
-				}
-			}
-		);
-	}
-	catch (err) {
-		console.log('V1 Error confirming client: ' + err);
-	}
-}
-
-
-function givegun(client, res, username, ticket, clientusername, secure_code, gun_id) {
-	try {
-		TicketConfirmation (client, username, ticket,
-			function (err, result) {
-				try {
-					if (err || !result) {
-						res.end('fail');
-					}
-					else {
-						SecureCodeConfirmation (client, clientusername, secure_code,
-							function (err, result) {
-								try {
-									if (err || !result) {
-										res.end('fail');
-									}
-									else {
-										client.query('INSERT INTO outpost_guns (outpost_character_id, gun_id) VALUES(?, ?)', [result.id, gun_id] );
-										res.end('success');
-									}
-								}
-								catch (err) {
-									console.log('V1 Error givegun second query: ' + err);
-								}
-							}
-						);
-					}
-				}
-				catch (err) {
-					console.log('V1 Error givegun first query: ' + err);
-				}
-			}
-		);
-	}
-	catch (err) {
-		console.log('V1 Error givegun: ' + err);
-	}
-}
-
-function AddGameData(client, res, data) {
-	try {
-		info = Parser(data);
-		game_data = info.shift();
-		for (user in info) {
-			SecureCodeConfirmation(client, info[user].username, info[user].secure_code,
-				function (err, result) {
-					try {
-						if (err || !result) {
-							res.end('fail');
-						}
-						else {
-							client.query('SELECT id FROM outpost_characters WHERE user_id=?', [result.id],
-								function (err, result2) {
-									try {
-										if (err) {
-											res.end('fail');
-										}
-										else {
-											client.query('INSERT INTO outpost_games (character_id, game_mode, game_length, map) VALUES(?, ?, ?, ?)', [result2[0].id, game_data.game_mode, game_data.game_length, game_data.map],
-												function (err, result3) {
-													try {
-														if (err || !result3) {
-															res.end('fail3');
-														}
-													}
-													catch (err) {
-														console.log('V1 Error AddGameData 3rd query: ' + err);
-													}
-												}
-											);
-											client.query('UPDATE outpost_characters SET exp=exp+?, assists=assists+? WHERE id=?', [info[user].experience, info[user].assists, result2[0].id],
-												function (err, result4) {
-													try {
-														if (err || !result4) {
-															res.end('fail4');
-														}
-													}
-													catch (err) {
-														console.log('V1 Error AddGameData 4th query: ' + err);
-													}
-												}
-											);
-											guninfo = info[user].guns;
-											for (gun in guninfo) {
-												client.query('UPDATE outpost_guns, outpost_characters SET outpost_guns.hits=outpost_guns.hits+?, outpost_guns.misses=outpost_guns.misses+?, outpost_guns.kills=outpost_guns.kills+?, outpost_guns.deaths=outpost_guns.deaths+?, outpost_guns.skill_level_kills=outpost_guns.skill_level_kills+?, outpost_guns.skill_level_deaths=outpost_guns.skill_level_deaths+?, outpost_guns.headshots=outpost_guns.headshots+? WHERE outpost_characters.user_id=? AND gun_id=?', [guninfo[gun].hits, guninfo[gun].misses, guninfo[gun].kills, guninfo[gun].deaths, guninfo[gun].skill_level_kills, guninfo[gun].skill_level_deaths, guninfo[gun].headshots, result2[0].id, parseInt(guninfo[gun].id)],
-													function (err, result5) {
-														try {
-															if (err || !result5) {
-																console.log('failing' + err);
-																res.end('fail' + err);
-															}
-														}
-														catch (err) {
-															console.log('V1 Error AddGameData 5th query: ' + err);
-														}
-													}
-												);
-											}
-											res.end('success');
-										}
-									}
-									catch (err) {
-										console.log('V1 Error AddGameData 2nd query: ' + err);
-									}
-								}
-							);
-						}
-					}
-					catch (err) {
-						console.log('V1 Error AddGameData 1st query: ' + err);
-					}
-				}
-			);
-		}
-	}
-	catch (err) {
-		console.log('V1 Error AddGameData: ' + err);
-	}
-}
-
-
-
-
-
-/*=================================
-			Social
-=================================*/
-/*
-function ParseSocial(client, pass, res) {
-    switch (pass.pathname) {
-    case '/friend_request':
-        friendRequest(client, res,
-            pass.query.username,
-            pass.query.ticket,
-            pass.query.friend_name
-        );
-    break;
-    case '/friend_accept':
-        friendaccept(client, res,
-            pass.query.username,
-            pass.query.ticket,
-            pass.query.friend_name
-        );
-    break;
-    case '/get_friends':
-        getfriends(client, res,
-            pass.query.username,
-            pass.query.ticket
-        );
-    break;
-    case '/unfriend':
-        unfriend(client, res,
-            pass.query.username,
-            pass.query.ticket,
-            pass.query.friend_name
-        );
-    break;
-    default:
-        res.end('eInvalid URL');
-    }
-}*/
-
-//send friend request
-function friendRequest(client, res, username, ticket, friendname) {
-    if (username == friendname) {
-        res.end('eInvalid Arguments');
-        return;
-    }
-    
-    //confirm user
-    client.query('SELECT id, ticket FROM users WHERE (username = ? AND ticket = ?) OR username = ?',
-        [username, ticket, friendname],
-        function friendRequestCheckUser(err, result) {
-            if (err || !result) {
-                res.end('eInternal Error');
-                return;
-            }
-            
-            if (result.length != 2) {
-                res.end('eUser not found');
-            }
-            else {
-                if (result[0].ticket == ticket) {
-                    user1 = result[0].id;
-                    user2 = result[1].id;
-                }
-                else {
-                    user1 = result[1].id;
-                    user2 = result[0].id;
-                }
-                
-                checkFriendRequest(client, res, user1, user2);
-            }
-        }
-    );
-}
-
-function checkFriendRequest(client, res, user1, user2) {
-    client.query('SELECT user_id FROM friends WHERE (user_id = ? AND friend_id = ?) OR (friend_id = ? AND user_id = ?)',
-        [user1, user2, user1, user2],
-        function checkedFriendRequest(err, result) {
-            if (err || !result) {
-                res.end('eInternal Error');
-                throw err;
-            }
-            
-            if (result.length == 0) {
-                makeFriendRequest(client, res, user1, user2);
-            }
-            else {
-                res.end('eAlready Friends');
-            }
-        }
-    );
-}
-
-function makeFriendRequest(client, res, user1, user2) {
-    client.query('INSERT INTO friends (user_id, friend_id) VALUES(?, ?)',
-        [user1, user2],
-        function madeFriendRequest(err, result) {
-            if (err || !result) {
-                res.end('eInternal Error');
-                throw err;
-            }
-            
-            res.end('s');
-        }
-    );
-}
-
-//accept friend request
-function friendAccept(client, res, username, ticket, friendname) {
-    client.query('UPDATE friends ' +
-        'INNER JOIN users AS u1 ON friends.user_id = u1.id ' + 
-        'INNER JOIN users AS u2 ON friends.friend_id = u2.id ' +
-        'SET friends.accepted = 1 ' +
-        'WHERE u1.username = ? AND u1.ticket = ? AND u2.username = ?',
-        [username, ticket, friendname],
-        function friendAccepted(err, result) {
-            if (err || !result) {
-                res.end('eInternal Error');
-                throw err;
-            }
-            res.end('s');
-        }
-    );
-}
-
-//get friends
-function getFriends(client, res, username, ticket) {
-    client.query('SELECT u1.username AS username, friends.accepted AS accepted '+
-        'INNER JOIN users AS u1 ON friends.user_id = u1.id OR friends.friend_id = u1.id ' +
-        'INNER JOIN users AS u2 ON friends.user_id = u2.id OR friends.friend_id = u2.id ' +
-        'WHERE u2.username = ? AND u2.ticket = ? ' +
-        'ORDER BY friends.accepted ASC',
-        [username, ticket],
-        function gotFriends(err, results) {
-            if (err || !result) {
-                res.end('eInternal Error');
-                throw err;
-            }
-            
-            out = ""
-            prev = true;
-            for (result in results) {
-                if (prev != result.accepted) {
-                    prev = result.accepted;
-                    out += ";";
-                }
-                out += ";" + result.username;
-            }
-            
-            res.end('s' + out.substring(1));
-        }
-    );
-}
-
-//unfriend
-function unfriend(client, res, username, ticket, friendname) {
-    client.query('DELETE FROM friends ' +
-        'INNER JOIN users AS u1 ON u1.id = friends.user_id ' +
-        'INNER JOIN users AS u2 ON u2.id = friends.friend_id ' +
-        'WHERE (u1.username = ? AND u1.ticket = ? AND u2.username = ?) OR ' +
-        '(u2.username = ? AND u2.ticket = ? AND u1.username = ?)',
-        [username, ticket, friendsname, username, ticket, friendname],
-        function unfriended(err, result) {
-            if (err || !result) {
-                res.end('eInternal Error');
-                throw err;
-            }
-            res.end('s');
         }
     );
 }
