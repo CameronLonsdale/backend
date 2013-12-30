@@ -120,8 +120,9 @@ function Login(client, res, username, password) {
             if (hash.sha512(password, result.password_salt) === result.password_hash) {
                 ticket = randomstring(32);
                 secureCode = randomstring(32);
+                ipv4 = '127.0.0.1'; // get the ip address of the source of the http request
 
-                client.query('UPDATE users SET ticket=?, secure_code=? WHERE id=?', [ticket, secureCode, result.id],
+                client.query('UPDATE users SET ticket=?, secure_code=?, ipv4=? WHERE id=?', [ticket, secureCode, ipv4, result.id],
                     function loginReturn(err, result2) {
                         if (err || !result2) {
                             res.end('eInternal Error');
@@ -129,7 +130,7 @@ function Login(client, res, username, password) {
                         }
 
                         end = function EndLogin() {
-                            res.end('s' + ticket + ';' + secureCode);
+                            res.end('s' + ticket + ';' + secureCode + ';' + ipv4);
                         }
 
                         error = function FailLogin() {

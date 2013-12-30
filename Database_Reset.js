@@ -49,7 +49,8 @@ function createTables() {
 		'subscription BOOL NOT NULL, ' +
 		'confirmed BOOL NOT NULL DEFAULT 1, ' +
 		'ticket varchar(32) NOT NULL, ' +
-		'secure_code varchar(32) NOT NULL, '+
+		'secure_code varchar(32) NOT NULL, ' +
+		'ipv4 varchar(15), ' +
 		'PRIMARY KEY (id, username, email)' +
 		');', 
 		function(err) {
